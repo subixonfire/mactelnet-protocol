@@ -22,9 +22,13 @@ This is particularly useful for:
 - **Keepalive** — prevents idle session timeout
 - **Self-contained** — single Python file, no RouterOS API dependency
 
-## Dependencies
+## Setup
 
 ```bash
+git clone https://github.com/subixonfire/mactelnet-protocol.git
+cd mactelnet-protocol
+python3 -m venv .venv
+source .venv/bin/activate
 pip install pycryptodome ecdsa
 ```
 
