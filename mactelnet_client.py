@@ -220,7 +220,9 @@ class ControlPacket:
 
     @staticmethod
     def parse_all(raw):
-        """Parse all control packets from raw data. Returns list of ControlPacket."""
+        """Parse control packets from raw data.
+        Returns (packets, remaining_bytes) where remaining_bytes is any
+        trailing data after the last control packet (e.g. terminal data)."""
         packets = []
         pos = 0
         while pos < len(raw):
@@ -234,7 +236,7 @@ class ControlPacket:
             data = raw[pos + 9:pos + 9 + data_len]
             packets.append(ControlPacket(cp_type, data))
             pos += 9 + data_len
-        return packets
+        return packets, raw[pos:]
 
     def __repr__(self):
         names = {0: 'BEGIN_AUTH', 1: 'ENC_KEY', 2: 'PASSWORD', 3: 'USERNAME',
@@ -327,6 +329,8 @@ class MACTelnetClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, 'SO_REUSEPORT'):
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         self.sock.bind(('0.0.0.0', MT_PORT))
 
         # Detect our own IP so we can filter our own broadcast echoes
@@ -444,8 +448,8 @@ class MACTelnetClient:
                 continue
             if resp.ptype == PT_DATA:
                 self._send_ack(resp)
-                self.recv_counter += resp.data_len()
-                cps = ControlPacket.parse_all(resp.payload)
+                self.recv_counter = max(self.recv_counter, resp.counter + resp.data_len())
+                cps, _ = ControlPacket.parse_all(resp.payload)
                 for cp in cps:
                     if cp.type == CP_ENCRYPTION_KEY:
                         self.server_public = cp.data[:32]
@@ -494,14 +498,17 @@ class MACTelnetClient:
                 new_data = resp.counter + resp.data_len() > self.recv_counter or \
                            self.recv_counter + resp.data_len() > 65535
                 if new_data:
-                    self.recv_counter += resp.data_len()
+                    self.recv_counter = max(self.recv_counter, resp.counter + resp.data_len())
                 else:
                     continue
                 if resp.payload[:4] == CP_MAGIC:
-                    cps = ControlPacket.parse_all(resp.payload)
+                    cps, remaining = ControlPacket.parse_all(resp.payload)
                     for cp in cps:
                         if cp.type == CP_END_AUTH:
                             end_auth_count += 1
+                    if remaining:
+                        sys.stdout.buffer.write(remaining)
+                        sys.stdout.flush()
                     if end_auth_count >= 2:
                         self.authenticated = True
                         return
