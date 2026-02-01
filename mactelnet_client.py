@@ -331,7 +331,14 @@ class MACTelnetClient:
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if hasattr(socket, 'SO_REUSEPORT'):
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        self.sock.bind(('0.0.0.0', MT_PORT))
+        try:
+            self.sock.bind(('0.0.0.0', MT_PORT))
+        except OSError as e:
+            if e.errno == 48:
+                raise ConnectionError(
+                    "MAC-Telnet port 20561 already in use. "
+                    "Close any other MAC-Telnet client first.")
+            raise
 
         # Detect our own IP so we can filter our own broadcast echoes
         try:
@@ -415,6 +422,14 @@ class MACTelnetClient:
                     self.server_session_id = pkt.session_id
                     if self.debug:
                         print(f'[RX]   learned server session_id={self.server_session_id}', file=sys.stderr)
+                # Auto-respond to PING with PONG
+                if pkt.ptype == PT_PING:
+                    pong = self._make_packet(PT_PONG)
+                    pong.counter = pkt.counter
+                    self.sock.sendto(pong.to_bytes(), ('255.255.255.255', MT_PORT))
+                    if self.debug:
+                        print(f'[RX]   PING -> PONG response', file=sys.stderr)
+                    continue
                 return pkt
             elif self.debug and pkt:
                 print(f'[RX]   ignored (src_mac mismatch)', file=sys.stderr)
