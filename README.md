@@ -74,6 +74,13 @@ See [PROTOCOL.md](PROTOCOL.md) for a detailed specification of the MAC-Telnet an
 - MNDP only advertises one IP per device (RouterOS limitation)
 - Requires root/admin privileges on some systems for raw UDP broadcast
 
+## Acknowledgments and References
+
+All protocol implementations are based on reverse engineering. This project builds on research from:
+
+- [haakonnessjoen/MAC-Telnet](https://github.com/haakonnessjoen/MAC-Telnet) — The reference open-source MAC-Telnet client/server implementation (C), including EC-SRP5 authentication support and MNDP discovery.
+- [MarginResearch/mikrotik_authentication](https://github.com/MarginResearch/mikrotik_authentication) — Research and proof-of-concept implementations of MikroTik's EC-SRP5 authentication protocol. Provided the elliptic curve cryptography used in this client.
+
 ## License
 
 MIT
